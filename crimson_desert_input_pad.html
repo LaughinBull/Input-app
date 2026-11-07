@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crimson Desert Input Pad</title>
+<style>
+  :root{
+    --bg:#111318;
+    --panel:#1a1e26;
+    --card:#222834;
+    --border:#394150;
+    --text:#f4f7fb;
+    --muted:#9ca7b8;
+    --accent:#4f8cff;
+    --accent2:#294f89;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    background:var(--bg);
+    color:var(--text);
+  }
+  .wrap{
+    max-width:1000px;
+    margin:0 auto;
+    padding:24px;
+  }
+  h1{margin:0 0 18px;font-size:28px}
+  h2{font-size:18px;margin:0 0 10px}
+  section{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px;
+    margin-bottom:14px;
+  }
+  textarea,input{
+    width:100%;
+    background:#0f1217;
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:12px;
+    font:16px Consolas,Monaco,monospace;
+  }
+  textarea{min-height:95px;resize:vertical;font-size:19px}
+  button{
+    background:var(--card);
+    color:var(--text);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:10px 14px;
+    min-height:44px;
+    cursor:pointer;
+    font-weight:600;
+  }
+  button:hover{border-color:var(--accent);background:#293141}
+  button.primary{background:var(--accent2);border-color:var(--accent)}
+  .row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(110px,1fr));
+    gap:8px;
+  }
+  .macro-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
+    gap:8px;
+  }
+  .macro{
+    text-align:left;
+    padding:12px;
+  }
+  .macro strong{display:block;margin-bottom:4px}
+  .macro code{color:var(--muted);font-size:14px}
+  .face{font-size:22px}
+  .hint{color:var(--muted);font-size:13px;margin-top:8px}
+  .add-grid{
+    display:grid;
+    grid-template-columns:1fr 2fr auto;
+    gap:8px;
+    margin-top:10px;
+  }
+  @media(max-width:700px){
+    .wrap{padding:12px}
+    .add-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Crimson Desert Input Pad</h1>
+
+  <section>
+    <h2>Combo input</h2>
+    <textarea id="output" placeholder="Inputs appear here..."></textarea>
+    <div class="row">
+      <button id="undo">Undo</button>
+      <button data-insert=" ">Space</button>
+      <button id="copy">Copy</button>
+      <button id="clear">Clear</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Common actions</h2>
+    <div class="macro-grid" id="macros"></div>
+  </section>
+
+  <section>
+    <h2>Buttons</h2>
+    <div class="grid">
+      <button class="insert face" data-insert="△">△</button>
+      <button class="insert face" data-insert="○">○</button>
+      <button class="insert face" data-insert="✕">✕</button>
+      <button class="insert face" data-insert="□">□</button>
+      <button class="insert" data-insert="R1">R1</button>
+      <button class="insert" data-insert="R2">R2</button>
+      <button class="insert" data-insert="L1">L1</button>
+      <button class="insert" data-insert="L2">L2</button>
+      <button class="insert" data-insert="L3">L3</button>
+      <button class="insert face" data-insert="↑">↑</button>
+      <button class="insert face" data-insert="↓">↓</button>
+      <button class="insert face" data-insert="←">←</button>
+      <button class="insert face" data-insert="→">→</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Notation</h2>
+    <div class="row">
+      <button class="insert" data-insert="-">-</button>
+      <button class="insert" data-insert=",">,</button>
+      <button class="insert" data-insert="+">+</button>
+      <button class="insert" data-insert="[">[</button>
+      <button class="insert" data-insert="]">]</button>
+      <button class="insert" data-insert="[MID]">[MID]</button>
+      <button class="insert" data-insert="[HOLD]">[HOLD]</button>
+      <button class="insert" data-insert="[CLOSE]">[CLOSE]</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>Add your own shortcut</h2>
+    <div class="add-grid">
+      <input id="macroName" placeholder="Name">
+      <input id="macroValue" placeholder="Input sequence">
+      <button class="primary" id="addMacro">Add</button>
+    </div>
+    <div class="hint">Custom shortcuts are saved in this browser on this computer.</div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const output = document.getElementById('output');
+  const macroBox = document.getElementById('macros');
+  const history = [];
+
+  const defaults = [
+    ['Kick off enemy / Air kick', '↑L3,X X-△ △'],
+    ['Movement while facing enemy', '↑L3 ↓L3 ←L3 →L3'],
+    ['Ambush', 'L3,R1'],
+    ['Blinding Light', 'L1,R1'],
+    ['Blinding Light Assault', '[R2]'],
+    ['Aim / Shield', '[L1]'],
+    ['Axiom', 'L3']
+  ];
+
+  let custom = [];
+  try {
+    custom = JSON.parse(localStorage.getItem('cd_input_pad_macros') || '[]');
+    if (!Array.isArray(custom)) custom = [];
+  } catch {
+    custom = [];
+  }
+
+  function saveCustom() {
+    localStorage.setItem('cd_input_pad_macros', JSON.stringify(custom));
+  }
+
+  function insertText(text) {
+    history.push(output.value);
+    const start = output.selectionStart ?? output.value.length;
+    const end = output.selectionEnd ?? output.value.length;
+    output.value = output.value.slice(0, start) + text + output.value.slice(end);
+    const pos = start + text.length;
+    output.focus();
+    output.setSelectionRange(pos, pos);
+  }
+
+  function renderMacros() {
+    macroBox.innerHTML = '';
+    [...defaults, ...custom].forEach(([name, value], i) => {
+      const b = document.createElement('button');
+      b.className = 'macro';
+      b.type = 'button';
+      b.innerHTML = '<strong></strong><code></code>';
+      b.querySelector('strong').textContent = name;
+      b.querySelector('code').textContent = value;
+      b.addEventListener('click', () => insertText(value));
+
+      if (i >= defaults.length) {
+        b.title = 'Right-click to delete custom shortcut';
+        b.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          const idx = i - defaults.length;
+          custom.splice(idx, 1);
+          saveCustom();
+          renderMacros();
+        });
+      }
+      macroBox.appendChild(b);
+    });
+  }
+
+  document.querySelectorAll('[data-insert]').forEach(b => {
+    b.addEventListener('click', () => insertText(b.dataset.insert));
+  });
+
+  document.getElementById('undo').addEventListener('click', () => {
+    if (!history.length) return;
+    output.value = history.pop();
+    output.focus();
+    output.setSelectionRange(output.value.length, output.value.length);
+  });
+
+  document.getElementById('clear').addEventListener('click', () => {
+    history.push(output.value);
+    output.value = '';
+    output.focus();
+  });
+
+  document.getElementById('copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(output.value);
+    } catch {
+      output.select();
+      document.execCommand('copy');
+    }
+  });
+
+  document.getElementById('addMacro').addEventListener('click', () => {
+    const n = document.getElementById('macroName');
+    const v = document.getElementById('macroValue');
+    const name = n.value.trim();
+    const value = v.value.trim();
+    if (!name || !value) return;
+    custom.push([name, value]);
+    saveCustom();
+    n.value = '';
+    v.value = '';
+    renderMacros();
+  });
+
+  renderMacros();
+})();
+</script>
+</body>
+</html>

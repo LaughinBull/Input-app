@@ -1,0 +1,392 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Crimson Desert Input Pad</title>
+<HTA:APPLICATION
+  APPLICATIONNAME="Crimson Desert Input Pad"
+  ID="CDInputPad"
+  BORDER="thin"
+  CAPTION="yes"
+  SHOWINTASKBAR="yes"
+  SINGLEINSTANCE="yes"
+  SYSMENU="yes"
+  SCROLL="yes"
+  WINDOWSTATE="normal"
+/>
+<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+<style>
+  body{
+    margin:0;
+    background:#111318;
+    color:#f4f7fb;
+    font-family:Segoe UI, Arial, sans-serif;
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:22px;}
+  h1{font-size:26px;margin:0 0 16px;}
+  h2{font-size:17px;margin:0 0 10px;}
+  .section{
+    background:#1a1e26;
+    border:1px solid #394150;
+    border-radius:12px;
+    padding:14px;
+    margin-bottom:12px;
+  }
+  textarea,input{
+    box-sizing:border-box;
+    width:100%;
+    background:#0f1217;
+    color:#f4f7fb;
+    border:1px solid #394150;
+    border-radius:8px;
+    padding:10px;
+    font-family:Consolas, monospace;
+    font-size:16px;
+  }
+  textarea{height:90px;font-size:19px;resize:vertical;}
+  button{
+    background:#222834;
+    color:#f4f7fb;
+    border:1px solid #394150;
+    border-radius:8px;
+    padding:9px 12px;
+    margin:3px;
+    min-height:40px;
+    cursor:pointer;
+    font-weight:600;
+    font-family:'Segoe UI Symbol','Segoe UI',Arial,sans-serif;
+  }
+  button:hover{background:#2a3240;border-color:#4f8cff;}
+  .face{font-size:21px;min-width:52px;}
+  .grid{display:flex;flex-wrap:wrap;}
+  .macro-card{
+    border:1px solid #394150;
+    border-radius:10px;
+    padding:10px;
+    margin:7px 0;
+    background:#202631;
+  }
+  .macro-top{display:flex;gap:8px;align-items:center;}
+  .macro-main{flex:1;min-width:0;}
+  .macro-name{font-weight:700;margin-bottom:4px;}
+  .macro-value{font-family:Consolas,monospace;color:#aab4c3;word-break:break-word;}
+  .macro-actions{white-space:nowrap;}
+  .muted{color:#9ca7b8;font-size:12px;margin-top:8px;}
+  .row{display:flex;flex-wrap:wrap;align-items:center;}
+  .addrow{display:flex;gap:6px;align-items:center;}
+  .addrow input{width:auto;flex:1;}
+  .primary{background:#294f89;border-color:#4f8cff;}
+  .danger{border-color:#87434b;}
+  .edit-panel{
+    margin-top:10px;
+    padding-top:10px;
+    border-top:1px solid #394150;
+    display:none;
+  }
+  .editrow{display:flex;gap:6px;align-items:center;}
+  .editrow input{width:auto;flex:1;}
+  @media(max-width:700px){
+    .addrow,.editrow,.macro-top{display:block;}
+    .addrow input,.editrow input{width:100%;margin-bottom:6px;}
+    .macro-actions{margin-top:8px;}
+  }
+</style>
+<script language="javascript">
+var historyStack = [];
+var macros = [
+  ["Kick off enemy / Air kick","\u2191L3,X X-\u25B3 \u25B3"],
+  ["Movement while facing enemy","\u2191L3 \u2193L3 \u2190L3 \u2192L3"],
+  ["Ambush","L3,R1"],
+  ["Blinding Light","L1,R1"],
+  ["Blinding Light Assault","[R2]"],
+  ["Aim / Shield","[L1]"],
+  ["Axiom","L3"]
+];
+
+function outputBox(){ return document.getElementById("output"); }
+
+function insertText(txt){
+  var box = outputBox();
+  historyStack.push(box.value);
+
+  if (document.selection) {
+    box.focus();
+    var sel = document.selection.createRange();
+    sel.text = txt;
+  } else {
+    var start = box.selectionStart || box.value.length;
+    var end = box.selectionEnd || box.value.length;
+    box.value = box.value.substring(0,start) + txt + box.value.substring(end);
+    var p = start + txt.length;
+    box.selectionStart = p;
+    box.selectionEnd = p;
+    box.focus();
+  }
+}
+
+function undoLast(){
+  if(historyStack.length){
+    outputBox().value = historyStack.pop();
+    outputBox().focus();
+  }
+}
+
+function clearOutput(){
+  historyStack.push(outputBox().value);
+  outputBox().value="";
+  outputBox().focus();
+}
+
+function copyOutput(){
+  var box = outputBox();
+  box.focus();
+  box.select();
+  try {
+    window.clipboardData.setData("Text", box.value);
+  } catch(e) {
+    try { document.execCommand("Copy"); } catch(e2) {}
+  }
+}
+
+function escapeHtml(s){
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+          .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
+}
+
+function renderMacros(){
+  var holder = document.getElementById("macroHolder");
+  holder.innerHTML = "";
+
+  for(var i=0;i<macros.length;i++){
+    (function(index){
+      var item = macros[index];
+
+      var card = document.createElement("div");
+      card.className = "macro-card";
+
+      var top = document.createElement("div");
+      top.className = "macro-top";
+
+      var main = document.createElement("div");
+      main.className = "macro-main";
+      main.innerHTML = '<div class="macro-name">'+escapeHtml(item[0])+'</div>'+
+                       '<div class="macro-value">'+escapeHtml(item[1])+'</div>';
+
+      var actions = document.createElement("div");
+      actions.className = "macro-actions";
+
+      var useBtn = document.createElement("button");
+      useBtn.innerText = "Use";
+      useBtn.onclick = function(){ insertText(macros[index][1]); };
+
+      var editBtn = document.createElement("button");
+      editBtn.innerText = "Edit";
+      editBtn.onclick = function(){
+        var panel = document.getElementById("edit_"+index);
+        panel.style.display = panel.style.display === "block" ? "none" : "block";
+      };
+
+      var delBtn = document.createElement("button");
+      delBtn.innerText = "Delete";
+      delBtn.className = "danger";
+      delBtn.onclick = function(){
+        if(confirm('Delete "'+macros[index][0]+'"?')){
+          macros.splice(index,1);
+          saveMacros();
+          renderMacros();
+        }
+      };
+
+      actions.appendChild(useBtn);
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+
+      top.appendChild(main);
+      top.appendChild(actions);
+
+      var edit = document.createElement("div");
+      edit.className = "edit-panel";
+      edit.id = "edit_"+index;
+      edit.innerHTML =
+        '<div class="editrow">'+
+        '<input id="editName_'+index+'" value="'+escapeHtml(item[0])+'" title="Shortcut name">'+
+        '<input id="editValue_'+index+'" value="'+escapeHtml(item[1])+'" title="Input sequence">'+
+        '<button class="primary" id="saveEdit_'+index+'">Save</button>'+
+        '<button id="cancelEdit_'+index+'">Cancel</button>'+
+        '</div>';
+
+      card.appendChild(top);
+      card.appendChild(edit);
+      holder.appendChild(card);
+
+      document.getElementById("saveEdit_"+index).onclick = function(){
+        var n = document.getElementById("editName_"+index).value.replace(/^\s+|\s+$/g,"");
+        var v = document.getElementById("editValue_"+index).value.replace(/^\s+|\s+$/g,"");
+        if(!n || !v){
+          alert("Name and input cannot be blank.");
+          return;
+        }
+        macros[index] = [n,v];
+        saveMacros();
+        renderMacros();
+      };
+
+      document.getElementById("cancelEdit_"+index).onclick = function(){
+        document.getElementById("edit_"+index).style.display = "none";
+      };
+
+    })(i);
+  }
+}
+
+function addMacro(){
+  var n = document.getElementById("macroName");
+  var v = document.getElementById("macroValue");
+  var name = n.value.replace(/^\s+|\s+$/g,"");
+  var val = v.value.replace(/^\s+|\s+$/g,"");
+  if(!name || !val){
+    alert("Enter both a name and an input sequence.");
+    return;
+  }
+  macros.push([name,val]);
+  n.value="";
+  v.value="";
+  saveMacros();
+  renderMacros();
+}
+
+function storagePath(){
+  try{
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var p = decodeURIComponent(location.pathname);
+    p = p.replace(/\//g,"\\");
+    if(p.charAt(0)==="\\" && p.charAt(2)===":") p = p.substring(1);
+    var folder = fso.GetParentFolderName(p);
+    return fso.BuildPath(folder,"crimson_desert_input_pad_shortcuts.txt");
+  }catch(e){
+    return "";
+  }
+}
+
+function saveMacros(){
+  try{
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var p = storagePath();
+    if(!p) return;
+    var file = fso.CreateTextFile(p,true,true);
+    for(var i=0;i<macros.length;i++){
+      var name = macros[i][0].replace(/\r?\n/g," ").replace(/\t/g," ");
+      var value = macros[i][1].replace(/\r?\n/g," ").replace(/\t/g," ");
+      file.WriteLine(name+"\t"+value);
+    }
+    file.Close();
+  }catch(e){}
+}
+
+function loadMacros(){
+  try{
+    var fso = new ActiveXObject("Scripting.FileSystemObject");
+    var p = storagePath();
+    if(!p || !fso.FileExists(p)) return;
+    var file = fso.OpenTextFile(p,1,false,-1);
+    var loaded = [];
+    while(!file.AtEndOfStream){
+      var line = file.ReadLine();
+      var pos = line.indexOf("\t");
+      if(pos>0){
+        loaded.push([line.substring(0,pos), line.substring(pos+1)]);
+      }
+    }
+    file.Close();
+    if(loaded.length) macros = loaded;
+  }catch(e){}
+}
+
+function resetDefaults(){
+  if(!confirm("Reset all shortcuts to the original defaults?")) return;
+  macros = [
+    ["Kick off enemy / Air kick","\u2191L3,X X-\u25B3 \u25B3"],
+    ["Movement while facing enemy","\u2191L3 \u2193L3 \u2190L3 \u2192L3"],
+    ["Ambush","L3,R1"],
+    ["Blinding Light","L1,R1"],
+    ["Blinding Light Assault","[R2]"],
+    ["Aim / Shield","[L1]"],
+    ["Axiom","L3"]
+  ];
+  saveMacros();
+  renderMacros();
+}
+
+function init(){
+  try { window.resizeTo(1000,860); } catch(e) {}
+  loadMacros();
+  renderMacros();
+}
+</script>
+</head>
+
+<body onload="init()">
+<div class="wrap">
+  <h1>Crimson Desert Input Pad</h1>
+
+  <div class="section">
+    <h2>Combo input</h2>
+    <textarea id="output"></textarea>
+    <div class="row">
+      <button onclick="undoLast()">Undo</button>
+      <button onclick="insertText(' ')">Space</button>
+      <button onclick="copyOutput()">Copy</button>
+      <button onclick="clearOutput()">Clear</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Shortcuts</h2>
+    <div id="macroHolder"></div>
+    <div class="muted">Every shortcut can be edited or deleted. Changes are saved beside the app.</div>
+  </div>
+
+  <div class="section">
+    <h2>Add shortcut</h2>
+    <div class="addrow">
+      <input id="macroName" placeholder="Shortcut name">
+      <input id="macroValue" placeholder="Input sequence">
+      <button class="primary" onclick="addMacro()">Add</button>
+      <button onclick="resetDefaults()">Reset defaults</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Buttons</h2>
+    <div class="grid">
+      <button class="face" onclick="insertText('\u25B3')">&#9651;</button>
+      <button class="face" onclick="insertText('\u25CB')">&#9675;</button>
+      <button class="face" onclick="insertText('\u2715')">&#10005;</button>
+      <button class="face" onclick="insertText('\u25A1')">&#9633;</button>
+      <button onclick="insertText('R1')">R1</button>
+      <button onclick="insertText('R2')">R2</button>
+      <button onclick="insertText('L1')">L1</button>
+      <button onclick="insertText('L2')">L2</button>
+      <button onclick="insertText('L3')">L3</button>
+      <button class="face" onclick="insertText('\u2191')">&#8593;</button>
+      <button class="face" onclick="insertText('\u2193')">&#8595;</button>
+      <button class="face" onclick="insertText('\u2190')">&#8592;</button>
+      <button class="face" onclick="insertText('\u2192')">&#8594;</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Notation</h2>
+    <div class="grid">
+      <button onclick="insertText('-')">-</button>
+      <button onclick="insertText(',')">,</button>
+      <button onclick="insertText('+')">+</button>
+      <button onclick="insertText('[')">[</button>
+      <button onclick="insertText(']')">]</button>
+      <button onclick="insertText('[MID]')">[MID]</button>
+      <button onclick="insertText('[HOLD]')">[HOLD]</button>
+      <button onclick="insertText('[CLOSE]')">[CLOSE]</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
